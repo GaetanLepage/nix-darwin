@@ -11,6 +11,10 @@ let
   cfg = config.services.karabiner-elements;
 
   parentAppDir = "/Applications/.Nix-Karabiner";
+
+  appSupport = "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements";
+  nonPrivilegedAgents = "${appSupport}/Karabiner-Elements Non-Privileged Agents v2.app";
+  binSrc = "${appSupport}/bin";
 in
 
 {
@@ -20,7 +24,9 @@ in
   };
 
   config = mkIf cfg.enable {
-    environment.systemPackages = [ cfg.package ];
+    environment = {
+      systemPackages = [ cfg.package ];
+    };
 
     system.activationScripts.preActivation.text = ''
       rm -rf ${parentAppDir}
@@ -55,7 +61,7 @@ in
 
     launchd.daemons.karabiner_core_service = {
       serviceConfig.ProgramArguments = [
-        "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/bin/Karabiner-Core-Service"
+        "${binSrc}/Karabiner-Core-Service"
       ];
       serviceConfig.ProcessType = "Interactive";
       serviceConfig.Label = "org.pqrs.Karabiner-Core-Service";
@@ -66,7 +72,7 @@ in
 
     launchd.daemons.karabiner_observer = {
       serviceConfig.ProgramArguments = [
-        "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_observer"
+        "${binSrc}/karabiner_observer"
       ];
 
       serviceConfig.Label = "org.pqrs.karabiner.karabiner_observer";
@@ -99,7 +105,7 @@ in
       script = ''
         rm -rf /run/wrappers
         mkdir -p /run/wrappers/bin
-        install -m4555 "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_session_monitor" /run/wrappers/bin
+        install -m4555 "${binSrc}/karabiner_session_monitor" /run/wrappers/bin
       '';
       serviceConfig.RunAtLoad = true;
       serviceConfig.KeepAlive.SuccessfulExit = false;
@@ -121,7 +127,7 @@ in
       serviceConfig.ProgramArguments = [
         "/usr/bin/open"
         "-a"
-        "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/Karabiner-Elements Privileged Daemons.app"
+        "${appSupport}/Karabiner-Elements Privileged Daemons.app"
       ];
       serviceConfig.RunAtLoad = true;
       serviceConfig.KeepAlive = false;
@@ -132,7 +138,7 @@ in
       serviceConfig.ProgramArguments = [
         "/usr/bin/open"
         "-a"
-        "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/Karabiner-Elements Non-Privileged Agents.app"
+        nonPrivilegedAgents
       ];
       serviceConfig.RunAtLoad = true;
       serviceConfig.KeepAlive = false;
@@ -140,11 +146,21 @@ in
     };
 
     # Updated plist paths for v15+ app bundle structure
-    environment.userLaunchAgents."org.pqrs.service.agent.karabiner_grabber.plist".source =
-      "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/Karabiner-Elements Non-Privileged Agents.app/Contents/Library/LaunchAgents/org.pqrs.service.agent.karabiner_grabber.plist";
-    environment.userLaunchAgents."org.pqrs.service.agent.karabiner_observer.plist".source =
-      "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/Karabiner-Elements Non-Privileged Agents.app/Contents/Library/LaunchAgents/org.pqrs.service.agent.karabiner_observer.plist";
-    environment.userLaunchAgents."org.pqrs.karabiner.karabiner_console_user_server.plist".source =
-      "${cfg.package}/Library/Application Support/org.pqrs/Karabiner-Elements/Karabiner-Elements Non-Privileged Agents.app/Contents/Library/LaunchAgents/org.pqrs.karabiner.karabiner_console_user_server.plist";
+    environment.userLaunchAgents =
+      let
+        launchAgents = "${nonPrivilegedAgents}/Contents/Library/LaunchAgents";
+      in
+      lib.genAttrs
+        [
+          "org.pqrs.service.agent.Karabiner-Core-Service.plist"
+          "org.pqrs.service.agent.Karabiner-Menu.plist"
+          "org.pqrs.service.agent.Karabiner-MultitouchExtension.plist"
+          "org.pqrs.service.agent.Karabiner-NotificationWindow.plist"
+          "org.pqrs.service.agent.karabiner_console_user_server.plist"
+          "org.pqrs.service.agent.karabiner_session_monitor.plist"
+        ]
+        (n: {
+          source = "${launchAgents}/${n}";
+        });
   };
 }
